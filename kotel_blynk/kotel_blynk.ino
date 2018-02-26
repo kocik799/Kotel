@@ -53,22 +53,26 @@ int UGOL_PODDUV_3 = 152;      // поддержание поддувало
 int UGOL_TYAGA_1 = 1;         // Открыт дымоход
 int UGOL_TYAGA_2 = 45;        //закрыт на половину
 int UGOL_TYAGA_3 = 90;        // закрыт полностью
-
+bool resultConnection, flag1, flag2;
+int okNotify = 1;
+unsigned long Time;
+float mintempSet = 70;
 int prevServo1 = 1;
 int prevServo2 = 1;
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
-char auth[] = "YOU token";
+
+char auth[] = "";
 
 // Your WiFi credentials.
 // Set password to "" for open networks.
 // You can also specify server:
 //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 8442);
 //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8442);
-char ssid[] = "you ssid wifi";
-char pass[] = "password";
+char ssid[] = "Sitovka";
+char pass[] = "89508032368";
 
 Servo servo1;
 Servo servo2;
@@ -80,22 +84,20 @@ void setup()
 {
   // Debug console
   Serial.begin(9600);
-  Blynk.begin(auth, ssid, pass);
+  //Blynk.begin(auth, ssid, pass);
+  Blynk.begin(auth, ssid, pass, IPAddress(192,168,51,147), 8442);
   sensors.begin();
   servo1.write(1); //начальное положение при загрузки
   servo2.write(1);  //начальное положение при загрузки
   servo1.attach(D0);  // поддувало
   servo2.attach(D1);  // дымоход
   pinMode(ReleyCool, OUTPUT); // реле вентилятора поддува
-  digitalWrite(ReleyCool, LOW);
-}
+  digitalWrite(ReleyCool, HIGH);
+  resultConnection = Blynk.connect();
+  }
 
 BLYNK_CONNECTED() {
   Blynk.syncAll();
-}
-
-BLYNK_WRITE(V5) {
-  TEMP_INSTALL = param.asInt();
 }
 
 BLYNK_WRITE(V0) {
@@ -123,13 +125,25 @@ BLYNK_WRITE(V3) {
    MANUALSTATE = param.asInt();
 }
 
+BLYNK_WRITE(V5) {
+  TEMP_INSTALL = param.asInt();
+}
+
+BLYNK_WRITE(V6) {
+   mintempSet = param.asInt();
+}
+BLYNK_WRITE(V7) {
+   okNotify = param.asInt();
+}
+
 void loop()
 {
-  Blynk.run();
+  if(resultConnection) Blynk.run();
   sendTemps();   //измерение температуры котла
   if(MANUALSTATE == 0){
     termoStat();
   }
+  minTemp();
 }
 
 void sendTemps()
@@ -138,8 +152,11 @@ void sendTemps()
   //delay(500);
   TEMP = sensors.getTempCByIndex(0)+ 10;  //коллибровка температуры
  // Serial.println(TEMP);
+  if (TEMP != -117) {
   Blynk.virtualWrite(V4, TEMP);
-  
+  } else {
+    Blynk.virtualWrite(V4, 0);
+  }
 }
 
 void termoStat() {
@@ -158,14 +175,16 @@ void termoStat() {
     setServopodduv(UGOL_PODDUV_3);
     digitalWrite(ReleyCool, HIGH); 
     Blynk.virtualWrite(V2, 0);
+    Blynk.virtualWrite(V7, 1);
+    flag2 = 0;
     
-  } else if (TEMP >= (TEMP_INSTALL + 5) && TEMP < 115) {
+  } else if (TEMP >= (TEMP_INSTALL + 5) && TEMP < 110) {
     setServopodduv(UGOL_PODDUV_1);
     setServotyaga(UGOL_TYAGA_2);
     digitalWrite(ReleyCool, HIGH); 
     Blynk.virtualWrite(V2, 0);
     
-  }else if (TEMP >= 115) {
+  }else if (TEMP >= 110) {
     Blynk.notify("АХТУНГ!!!_ "+String(TEMP));
     setServopodduv(UGOL_PODDUV_1);
     setServotyaga(UGOL_TYAGA_3);
@@ -190,5 +209,22 @@ void setServotyaga (byte val ){
   }else{
     Blynk.virtualWrite(V1,val);
   }
+}
+
+void minTemp(){
+  if(TEMP < mintempSet){flag1 = 1;} 
+
+  if(flag1 == 1){ 
+    flag1 = 0; 
+    Time = millis() / 1000; 
+  } 
+  if(millis() / 1000 - Time > 600){ 
+    flag2 = 1; 
+  } 
+  if(flag2 == 1){ 
+    if (okNotify == 1){
+      Blynk.notify("Остываем...подкинь угля - "+String(TEMP)); //действия после 10 мин 
+    }
+   } 
 }
 
