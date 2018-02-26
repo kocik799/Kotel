@@ -222,8 +222,10 @@ void minTemp(){
     flag2 = 1; 
   } 
   if(flag2 == 1){ 
-    if (okNotify == 1){
+    if (okNotify == 1 && TEMP < 69){
       Blynk.notify("Остываем...подкинь угля - "+String(TEMP)); //действия после 10 мин 
+    }else{
+      flag2=0;
     }
    } 
 }
